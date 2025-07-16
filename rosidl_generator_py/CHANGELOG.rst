@@ -2,8 +2,8 @@
 Changelog for package rosidl_generator_py
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.14.5 (2025-07-16)
+-------------------
 * fix (`#224 <https://github.com/ros2/rosidl_python/issues/224>`_) (`#226 <https://github.com/ros2/rosidl_python/issues/226>`_)
 * Contributors: mergify[bot]
 
