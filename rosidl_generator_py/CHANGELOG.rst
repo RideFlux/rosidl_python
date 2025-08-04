@@ -2,8 +2,8 @@
 Changelog for package rosidl_generator_py
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.26.0 (2025-08-04)
+-------------------
 * Static typing for Message, Services, and Actions (`#206 <https://github.com/ros2/rosidl_python/issues/206>`_)
 * Contributors: Michael Carlstrom
 
