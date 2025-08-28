@@ -192,6 +192,20 @@ target_include_directories(${_target_name_lib}
   ${PythonExtra_INCLUDE_DIRS}
 )
 
+if(ROSIDL_ENABLE_PCH AND CMAKE_VERSION VERSION_GREATER_EQUAL "3.16")
+  target_precompile_headers(${_target_name_lib} PRIVATE
+    # _idl_pkg_typesupport_entry_point.c.em
+    <Python.h>
+    # _msg_pkg_typesupport_entry_point.c.em
+    <stdbool.h>
+    <stdint.h>
+    [["rosidl_runtime_c/visibility_control.h"]]
+    [["rosidl_runtime_c/message_type_support_struct.h"]]
+    [["rosidl_runtime_c/service_type_support_struct.h"]]
+    [["rosidl_runtime_c/action_type_support_struct.h"]]
+  )
+endif()
+
 # Check if numpy is in the include path
 find_file(_numpy_h numpy/numpyconfig.h
   PATHS ${PythonExtra_INCLUDE_DIRS}
