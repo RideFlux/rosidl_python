@@ -17,6 +17,8 @@ import keyword
 import os
 import pathlib
 import sys
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from multiprocessing import cpu_count
 
 from rosidl_cmake import convert_camel_case_to_lower_case_underscore
 from rosidl_cmake import expand_template
@@ -52,8 +54,14 @@ SPECIAL_NESTED_BASIC_TYPES = {
     'uint64': {'dtype': 'numpy.uint64', 'type_code': 'Q'},
 }
 
+def _parse_elements_from_idl(idl_tuple: str):
+    idl_parts = idl_tuple.rsplit(':', 1)
+    assert len(idl_parts) == 2
+    locator = IdlLocator(*idl_parts)
+    idl_file = parse_idl_file(locator)
+    return idl_file.content.elements
 
-def generate_py(generator_arguments_file, typesupport_impls):
+def generate_py(generator_arguments_file, typesupport_impls, jobs=None):
     mapping = {
         '_idl.py.em': '_%s.py',
         '_idl_support.c.em': '_%s_s.c',
@@ -66,7 +74,10 @@ def generate_py(generator_arguments_file, typesupport_impls):
     # expand init modules for each directory
     modules = {}
     idl_content = IdlContent()
-    for idl_tuple in args.get('idl_tuples', []):
+    idl_tuples = list(args.get('idl_tuples', []))
+    parse_inputs = []
+
+    for idl_tuple in idl_tuples:
         idl_parts = idl_tuple.rsplit(':', 1)
         assert len(idl_parts) == 2
 
@@ -74,14 +85,37 @@ def generate_py(generator_arguments_file, typesupport_impls):
         idl_stems = modules.setdefault(str(idl_rel_path.parent), set())
         idl_stems.add(idl_rel_path.stem)
 
-        locator = IdlLocator(*idl_parts)
-        idl_file = parse_idl_file(locator)
-        idl_content.elements += idl_file.content.elements
+        parse_inputs.append(idl_tuple)
+
+    def _parse_all_with_executor(executor_cls, max_workers):
+        elements_total = []
+        with executor_cls(max_workers=max_workers) as ex:
+            for elements in ex.map(_parse_elements_from_idl, parse_inputs, chunksize=1):
+                elements_total.extend(elements)
+        return elements_total
+
+    if jobs is None or jobs <= 0:
+        jobs = min(cpu_count(), max(1, len(idl_tuples)))
+
+    if parse_inputs and jobs > 1:
+        # Parallel
+        try:
+            idl_content.elements += _parse_all_with_executor(ProcessPoolExecutor, jobs)
+        except Exception as e:
+            print(
+                f"[rosidl_generator_py] ProcessPoolExecutor failed ({type(e).__name__}: {e}). "
+                "Falling back to ThreadPoolExecutor.",
+                file=sys.stderr
+            )
+            idl_content.elements += _parse_all_with_executor(ThreadPoolExecutor, jobs)
+    else:
+        # Sequential
+        for idl_tuple in parse_inputs:
+            idl_content.elements += _parse_elements_from_idl(idl_tuple)
 
     # NOTE(sam): remove when a language specific name mangling is implemented
-
     def print_warning_if_reserved_keyword(member_name, interface_type, interface_name):
-        if (keyword.iskeyword(member.name)):
+        if keyword.iskeyword(member_name):
             print(
                 "Member name '{}' in the {} '{}' is a "
                 'reserved keyword in Python and is not supported '
